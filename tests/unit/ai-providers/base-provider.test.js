@@ -485,6 +485,30 @@ describe('BaseAIProvider', () => {
 				})
 			);
 		});
+
+		it('should forward maxTokens to the AI SDK as maxOutputTokens (regression)', async () => {
+			// AI SDK v5 honors `maxOutputTokens`; the legacy `maxTokens` key is
+			// ignored, silently dropping the limit. Structured-output calls then
+			// fall back to the endpoint default and get truncated. generateText
+			// and streamObject already use `maxOutputTokens`.
+			mockGenerateObject.mockResolvedValue({
+				object: { test: 'value' },
+				usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 }
+			});
+
+			await testProvider.generateObject({
+				apiKey: 'key',
+				modelId: 'model',
+				messages: [{ role: 'user', content: 'test' }],
+				schema: { type: 'object' },
+				objectName: 'TestObject',
+				maxTokens: 1000
+			});
+
+			const callArgs = mockGenerateObject.mock.calls[0][0];
+			expect(callArgs.maxOutputTokens).toBe(1000);
+			expect(callArgs).not.toHaveProperty('maxTokens');
+		});
 	});
 
 	describe('8. Integration Points - Client Creation', () => {
